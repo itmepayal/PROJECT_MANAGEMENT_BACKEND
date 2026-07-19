@@ -41,7 +41,9 @@ export const loginSchema = z.object({
   password: z
     .string()
     .min(6, "Password must be at least 6 characters long.")
-    .max(12, "Password must not exceed 12 characters."),
+    .max(128, "Password is too long."),
+
+  remember: z.boolean().optional().default(false),
 });
 
 export type LoginSchemaType = z.infer<typeof loginSchema>;
@@ -82,3 +84,9 @@ export const resetPasswordSchema = z.object({
 });
 
 export type ResetPasswordSchemaType = z.infer<typeof resetPasswordSchema>;
+
+export const refreshTokenSchema = z.object({
+  refreshToken: z.string().min(1, "Refresh token is required."),
+});
+
+export type RefreshTokenSchemaType = z.infer<typeof refreshTokenSchema>;

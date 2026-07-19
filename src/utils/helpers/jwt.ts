@@ -8,9 +8,12 @@ export const generateAccessToken = (payload: JWTPayload): string => {
   } as SignOptions);
 };
 
-export const generateRefreshToken = (payload: JWTPayload): string => {
+export const generateRefreshToken = (
+  payload: JWTPayload,
+  expiresIn?: string,
+): string => {
   return jwt.sign(payload, serverConfig.JWT_REFRESH_SECRET, {
-    expiresIn: serverConfig.JWT_REFRESH_EXPIRE,
+    expiresIn: expiresIn ?? serverConfig.JWT_REFRESH_EXPIRE,
   } as SignOptions);
 };
 

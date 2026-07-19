@@ -9,6 +9,7 @@ import { generateOTP } from "../../utils/helpers/otp";
 import {
   EmailSchemaType,
   LoginSchemaType,
+  RefreshTokenSchemaType,
   RegisterSchemaType,
   ResetPasswordSchemaType,
   VerifySchemaType,
@@ -19,12 +20,15 @@ import { AuthTokens } from "../../types";
 import {
   generateAccessToken,
   generateRefreshToken,
+  verifyRefreshToken,
 } from "../../utils/helpers/jwt";
 import { resetPasswordTemplate } from "../../utils/templates/reset-password";
 import { loginOTPTemplate } from "../../utils/templates/login-otp";
+import { serverConfig } from "../../config";
+import { verifyGoogleToken } from "../../utils/helpers/google";
 
 export const loginService = async (data: LoginSchemaType): Promise<any> => {
-  const { email, password } = data;
+  const { email, password, remember } = data;
 
   const user = await User.findOne({ email }).select("+password");
 
@@ -67,10 +71,10 @@ export const loginService = async (data: LoginSchemaType): Promise<any> => {
     email: user.email,
   });
 
-  const refreshToken = generateRefreshToken({
-    id: user._id.toString(),
-    email: user.email,
-  });
+  const refreshToken = generateRefreshToken(
+    { id: user._id.toString(), email: user.email },
+    remember ? serverConfig.JWT_REFRESH_EXPIRE_REMEMBER : undefined,
+  );
 
   user.refreshToken = refreshToken;
   user.lastLogin = new Date();
@@ -341,4 +345,111 @@ export const disableTwoFAService = async (userId: string): Promise<IUser> => {
   await user.save();
 
   return user;
+};
+
+export const googleLoginService = async (idToken: string) => {
+  if (!idToken) {
+    throw new BadRequestError("Google ID token is required.");
+  }
+
+  const { email, name, picture, googleId, emailVerified } =
+    await verifyGoogleToken(idToken);
+
+  let user = await User.findOne({ email }).select("+refreshToken");
+
+  if (!user) {
+    user = await User.create({
+      email,
+      name: name || email.split("@")[0],
+      avatar: picture || "",
+      authProvider: "google",
+      googleId,
+      isEmailVerified: emailVerified,
+      lastLogin: new Date(),
+    });
+  } else {
+    if (user.authProvider === "local") {
+      throw new BadRequestError(
+        "This email is already registered with email and password. Please login using your password.",
+      );
+    }
+
+    if (user.googleId && user.googleId !== googleId) {
+      throw new UnauthorizedError("Google account does not match.");
+    }
+
+    if (!user.isEmailVerified && emailVerified) {
+      user.isEmailVerified = true;
+    }
+
+    if ((!user.avatar || user.avatar === "") && picture) {
+      user.avatar = picture;
+    }
+
+    user.lastLogin = new Date();
+  }
+
+  const accessToken = generateAccessToken({
+    id: user._id.toString(),
+    email: user.email,
+  });
+
+  const refreshToken = generateRefreshToken({
+    id: user._id.toString(),
+    email: user.email,
+  });
+
+  user.refreshToken = refreshToken;
+  await user.save();
+
+  return {
+    user,
+    tokens: {
+      accessToken,
+      refreshToken,
+    },
+  };
+};
+
+export const refreshTokenService = async (
+  data: RefreshTokenSchemaType,
+): Promise<{ accessToken: string; refreshToken: string }> => {
+  const { refreshToken } = data;
+
+  let payload;
+  try {
+    payload = verifyRefreshToken(refreshToken);
+  } catch (err) {
+    throw new UnauthorizedError("Invalid or expired refresh token.");
+  }
+
+  const user = await User.findById(payload.id).select("+refreshToken");
+
+  if (!user) {
+    throw new UnauthorizedError("User not found.");
+  }
+
+  if (!user.refreshToken || user.refreshToken !== refreshToken) {
+    throw new UnauthorizedError(
+      "Refresh token is invalid or has been revoked.",
+    );
+  }
+
+  const newAccessToken = generateAccessToken({
+    id: user._id.toString(),
+    email: user.email,
+  });
+
+  const newRefreshToken = generateRefreshToken({
+    id: user._id.toString(),
+    email: user.email,
+  });
+
+  user.refreshToken = newRefreshToken;
+  await user.save();
+
+  return {
+    accessToken: newAccessToken,
+    refreshToken: newRefreshToken,
+  };
 };

@@ -4,6 +4,7 @@ import { StatusCodes } from "http-status-codes";
 import {
   emailSchema,
   loginSchema,
+  refreshTokenSchema,
   registerSchema,
   resetPasswordSchema,
   verifyEmailSchema,
@@ -20,6 +21,8 @@ import {
   resetPasswordService,
   verifyService,
   verifyTwoFactorService,
+  googleLoginService,
+  refreshTokenService,
 } from "./auth.service";
 import logger from "../../config/logger.config";
 
@@ -51,13 +54,11 @@ export const loginController = asyncHandler(
       return;
     }
     const { user, tokens } = result;
-    logger.info("User logged in successfully", {
-      userId: user._id.toString(),
-      email: user.email,
-    });
+    logger.info("User logged in successfully");
     AppResponse.success(res, StatusCodes.OK, "Login successful.", {
       user,
       accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
     });
   },
 );
@@ -164,5 +165,31 @@ export const disableTwoFAController = asyncHandler(
       "Two-factor authentication disabled successfully.",
       user,
     );
+  },
+);
+
+export const googleLoginController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { idToken } = req.body;
+    const result = await googleLoginService(idToken);
+    const { user, tokens } = result;
+    logger.info("User logged in successfully");
+    AppResponse.success(res, StatusCodes.OK, "Login successful.", {
+      user,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+    });
+  },
+);
+
+export const refreshTokenController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const validatedData = refreshTokenSchema.parse(req.body);
+    const tokens = await refreshTokenService(validatedData);
+    logger.info("Access token refreshed successfully");
+    AppResponse.success(res, StatusCodes.OK, "Token refreshed successfully.", {
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+    });
   },
 );

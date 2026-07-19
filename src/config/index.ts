@@ -16,6 +16,9 @@ type ServerConfig = {
   JWT_REFRESH_SECRET: string;
   JWT_ACCESS_EXPIRE: string;
   JWT_REFRESH_EXPIRE: string;
+  JWT_REFRESH_EXPIRE_REMEMBER: string;
+  GOOGLE_CLIENT_ID: string;
+  GOOGLE_CLIENT_SECRET: string;
 };
 
 export const serverConfig: ServerConfig = {
@@ -36,4 +39,8 @@ export const serverConfig: ServerConfig = {
 
   JWT_ACCESS_EXPIRE: process.env.JWT_ACCESS_EXPIRE || "15m",
   JWT_REFRESH_EXPIRE: process.env.JWT_REFRESH_EXPIRE || "1d",
+  JWT_REFRESH_EXPIRE_REMEMBER: process.env.JWT_REFRESH_EXPIRE_REMEMBER!,
+
+  GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID!,
+  GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET!,
 };

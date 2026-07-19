@@ -3,9 +3,11 @@ import { Document, Schema, model } from "mongoose";
 
 export interface IUser extends Document {
   email: string;
-  password: string;
+  password?: string;
   name: string;
   avatar?: string;
+  authProvider: "local" | "google";
+  googleId?: string;
   isEmailVerified: boolean;
   lastLogin?: Date;
   emailVerificationOTP?: string;
@@ -37,7 +39,21 @@ const userSchema = new Schema<IUser>(
 
     password: {
       type: String,
-      required: true,
+      required: function (this: IUser) {
+        return this.authProvider === "local";
+      },
+      select: false,
+    },
+
+    authProvider: {
+      type: String,
+      enum: ["local", "google"],
+      default: "local",
+    },
+
+    googleId: {
+      type: String,
+      default: null,
       select: false,
     },
 
@@ -131,6 +147,8 @@ userSchema.set("toJSON", {
     delete ret.twoFAEnabled;
     delete ret.twoFAotp;
     delete ret.twoFAExpire;
+    delete ret.googleId;
+    delete ret.refreshToken;
     ret.id = ret._id;
     delete ret._id;
     return ret;
@@ -138,7 +156,7 @@ userSchema.set("toJSON", {
 });
 
 userSchema.pre("save", async function (next) {
-  if (this.isModified("password")) {
+  if (this.isModified("password") && this.password) {
     this.password = await bcrypt.hash(this.password, 10);
   }
 
@@ -157,18 +175,21 @@ userSchema.pre("save", async function (next) {
 userSchema.methods.comparePassword = async function (
   candidatePassword: string,
 ): Promise<boolean> {
+  if (!this.password) return false;
   return bcrypt.compare(candidatePassword, this.password);
 };
 
 userSchema.methods.compareOtp = async function (
   candidateOtp: string,
 ): Promise<boolean> {
+  if (!this.emailVerificationOTP) return false;
   return bcrypt.compare(candidateOtp, this.emailVerificationOTP);
 };
 
 userSchema.methods.compareTwoFAOTP = async function (
   candidateOtp: string,
 ): Promise<boolean> {
+  if (!this.twoFAotp) return false;
   return bcrypt.compare(candidateOtp, this.twoFAotp);
 };
 
