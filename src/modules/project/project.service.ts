@@ -4,6 +4,7 @@ import User from "../../models/user.model";
 import Project, { IProject } from "../../models/project.model";
 import Role from "../../models/role.model";
 import Workspace from "../../models/workspace.model";
+import Board from "../../models/board.model";
 
 export const addProjectMemberService = async (
   projectId: string,
@@ -152,4 +153,23 @@ export const removeProjectMemberService = async (
   ]);
 
   return project;
+};
+
+export const createBoardService = async (
+  projectId: string,
+  workspaceId: string,
+  userId: string,
+  data: any,
+) => {
+  const board = await Board.create({
+    ...data,
+    project: projectId,
+    workspace: workspaceId,
+    createdBy: userId,
+  });
+  return board;
+};
+
+export const listBoardsService = async (projectId: string) => {
+  return Board.find({ project: projectId }).sort({ createdAt: -1 });
 };

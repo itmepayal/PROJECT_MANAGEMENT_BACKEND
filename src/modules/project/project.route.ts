@@ -8,6 +8,8 @@ import {
   addProjectMemberController,
   updateProjectMemberRoleController,
   removeProjectMemberController,
+  createBoardController,
+  listBoardsController,
 } from "./project.controller";
 
 const projectRouter = express.Router();
@@ -32,6 +34,20 @@ projectRouter.delete(
   checkProjectAccess,
   requirePermission("member:remove"),
   removeProjectMemberController,
+);
+projectRouter.post(
+  "/:projectId/boards",
+  authenticate,
+  checkProjectAccess,
+  requirePermission("board:create"),
+  createBoardController,
+);
+projectRouter.get(
+  "/:projectId/boards",
+  authenticate,
+  checkProjectAccess,
+  requirePermission("board:view"),
+  listBoardsController,
 );
 
 export default projectRouter;

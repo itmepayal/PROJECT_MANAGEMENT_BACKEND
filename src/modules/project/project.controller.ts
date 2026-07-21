@@ -6,12 +6,15 @@ import {
   addProjectMemberService,
   updateProjectMemberRoleService,
   removeProjectMemberService,
+  createBoardService,
+  listBoardsService,
 } from "./project.service";
 import { Request, Response } from "express";
 import asyncHandler from "express-async-handler";
 import { StatusCodes } from "http-status-codes";
 import logger from "../../config/logger.config";
 import { AppResponse } from "../../utils/response/app.response";
+import { createBoardSchema } from "../../validators/board.validator";
 
 export const addProjectMemberController = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
@@ -57,6 +60,42 @@ export const removeProjectMemberController = asyncHandler(
       StatusCodes.OK,
       "Member removed successfully.",
       project,
+    );
+  },
+);
+
+export const createBoardController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const { projectId } = req.params;
+    const workspaceId = req.project!.workspace.toString();
+    const userId = req.user!.id;
+    const boardData = createBoardSchema.parse(req.body);
+    const board = await createBoardService(
+      projectId,
+      workspaceId,
+      userId,
+      boardData,
+    );
+    logger.info(`Board created in project ${projectId} by user ${userId}.`);
+    AppResponse.success(
+      res,
+      StatusCodes.CREATED,
+      "Board created successfully.",
+      board,
+    );
+  },
+);
+
+export const listBoardsController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const { projectId } = req.params;
+    const boards = await listBoardsService(projectId);
+    logger.info(`Boards fetched for project ${projectId}.`);
+    AppResponse.success(
+      res,
+      StatusCodes.OK,
+      "Boards fetched successfully.",
+      boards,
     );
   },
 );
