@@ -2,6 +2,7 @@ import express from "express";
 import authRouter from "../../modules/auth/auth.router";
 import userRouter from "../../modules/user/user.route";
 import workspaceRouter from "../../modules/workspace/workspace.route";
+import projectRouter from "../../modules/project/project.route";
 
 const v1Router = express.Router();
 
@@ -17,4 +18,5 @@ v1Router.get("/", (req, res) => {
 v1Router.use("/auth", authRouter);
 v1Router.use("/users", userRouter);
 v1Router.use("/workspaces", workspaceRouter);
+v1Router.use("/projects", projectRouter);
 export default v1Router;

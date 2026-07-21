@@ -268,10 +268,10 @@ export const createProjectService = async (
     );
   }
 
-  const adminRole = await Role.findOne({ name: "Admin" });
+  const ownerRole = await Role.findOne({ name: "Owner" });
 
-  if (!adminRole) {
-    throw new NotFoundError("Default Admin role not found.");
+  if (!ownerRole) {
+    throw new NotFoundError("Default Owner role not found.");
   }
 
   const project = await Project.create({
@@ -281,7 +281,7 @@ export const createProjectService = async (
     members: [
       {
         user: new Types.ObjectId(ownerId),
-        role: adminRole._id,
+        role: ownerRole._id,
         joinedAt: new Date(),
       },
     ],

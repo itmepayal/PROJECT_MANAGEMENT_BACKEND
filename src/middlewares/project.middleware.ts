@@ -15,24 +15,33 @@ export const checkProjectAccess = async (
     const project = await Project.findById(projectId).populate("members.role");
 
     if (!project) {
-      throw new NotFoundError("Project not found");
+      throw new NotFoundError("Project not found.");
     }
 
-    const isOwner = project.owner.toString() === userId;
+    req.project = project;
+
+    if (project.owner.toString() === userId) {
+      req.projectPermissions = ["*"];
+      return next();
+    }
 
     const membership = project.members.find(
-      (m) => m.user.toString() === userId,
+      (member) => member.user.toString() === userId,
     );
 
-    if (!isOwner && !membership) {
-      throw new ForbiddenError("No access to this project");
+    if (!membership) {
+      throw new ForbiddenError("No access to this project.");
     }
 
-    const role = membership!.role as unknown as IRole;
-    req.project = project;
-    req.projectPermissions = isOwner ? ["*"] : role.permissions;
+    const role = membership.role as unknown as IRole;
 
-    next();
+    if (role.name === "Owner") {
+      throw new ForbiddenError("Invalid role assignment detected.");
+    }
+
+    req.projectPermissions = role.permissions;
+
+    return next();
   } catch (error) {
     next(error);
   }
