@@ -2,7 +2,7 @@ import { Document, Schema, model } from "mongoose";
 
 export interface IRole extends Document {
   name: string;
-  workspace?: Schema.Types.ObjectId;
+  workspace?: Schema.Types.ObjectId | null;
   permissions: string[];
   isSystem: boolean;
   createdAt: Date;

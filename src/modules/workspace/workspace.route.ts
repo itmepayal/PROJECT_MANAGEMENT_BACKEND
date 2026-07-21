@@ -67,7 +67,6 @@ workspaceRouter.delete(
   requireWorkspaceAdmin,
   removeWorkspaceMemberController,
 );
-
 workspaceRouter.post(
   "/:workspaceId/projects",
   authenticate,
