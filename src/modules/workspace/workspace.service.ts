@@ -1,11 +1,20 @@
-import { Types } from "mongoose";
+import mongoose, { Types } from "mongoose";
 import Workspace, { IWorkspace } from "../../models/workspace.model";
 import { BadRequestError, NotFoundError } from "../../utils/errors/app.error";
 import {
   CreateWorkspaceInput,
   UpdateWorkspaceInput,
 } from "../../validators/worksapce.validator";
+import {
+  CreateProjectInput,
+  UpdateProjectInput,
+} from "../../validators/project.validator";
 import User from "../../models/user.model";
+import Project, { IProject } from "../../models/project.model";
+import Role from "../../models/role.model";
+import { escapeRegex } from "../../utils/helpers/regex";
+import Sprint from "../../models/sprint.model";
+import Board from "../../models/board.model";
 
 export const createWorkspaceService = async (
   ownerId: string,
@@ -15,7 +24,9 @@ export const createWorkspaceService = async (
 
   const existingWorkspace = await Workspace.findOne({
     owner: ownerId,
-    name,
+    name: {
+      $regex: new RegExp(`^${escapeRegex(data.name)}$`, "i"),
+    },
   });
 
   if (existingWorkspace) {
@@ -43,14 +54,7 @@ export const getUserWorkspacesService = async (
   userId: string,
 ): Promise<IWorkspace[]> => {
   const workspaces = await Workspace.find({
-    $or: [
-      {
-        owner: userId,
-      },
-      {
-        "members.user": userId,
-      },
-    ],
+    $or: [{ owner: userId }, { "members.user": userId }],
   })
     .populate("owner", "name email avatar")
     .populate("members.user", "name email avatar")
@@ -87,11 +91,9 @@ export const updateWorkspaceService = async (
     const existingWorkspace = await Workspace.findOne({
       owner: workspace.owner,
       name: {
-        $regex: new RegExp(`^${data.name}$`, "i"),
+        $regex: new RegExp(`^${escapeRegex(data.name)}$`, "i"),
       },
-      _id: {
-        $ne: workspaceId,
-      },
+      _id: { $ne: workspaceId },
     });
 
     if (existingWorkspace) {
@@ -99,35 +101,16 @@ export const updateWorkspaceService = async (
     }
   }
 
-  if (data.name !== undefined) {
-    workspace.name = data.name;
-  }
+  if (data.name !== undefined) workspace.name = data.name;
+  if (data.description !== undefined) workspace.description = data.description;
+  if (data.color !== undefined) workspace.color = data.color;
+  if (data.icon !== undefined) workspace.icon = data.icon;
+  if (data.isPrivate !== undefined) workspace.isPrivate = data.isPrivate;
 
-  if (data.description !== undefined) {
-    workspace.description = data.description;
-  }
-
-  if (data.color !== undefined) {
-    workspace.color = data.color;
-  }
-
-  if (data.icon !== undefined) {
-    workspace.icon = data.icon;
-  }
-
-  if (data.isPrivate !== undefined) {
-    workspace.isPrivate = data.isPrivate;
-  }
   await workspace.save();
   await workspace.populate([
-    {
-      path: "owner",
-      select: "name email avatar",
-    },
-    {
-      path: "members.user",
-      select: "name email avatar",
-    },
+    { path: "owner", select: "name email avatar" },
+    { path: "members.user", select: "name email avatar" },
   ]);
 
   return workspace;
@@ -136,9 +119,23 @@ export const updateWorkspaceService = async (
 export const deleteWorkspaceService = async (
   workspaceId: string,
 ): Promise<void> => {
-  const workspace = await Workspace.findByIdAndDelete(workspaceId);
-  if (!workspace) {
-    throw new NotFoundError("Workspace not found.");
+  const session = await mongoose.startSession();
+
+  try {
+    await session.withTransaction(async () => {
+      const workspace = await Workspace.findById(workspaceId).session(session);
+
+      if (!workspace) {
+        throw new NotFoundError("Workspace not found.");
+      }
+
+      await Project.deleteMany({ workspace: workspaceId }).session(session);
+      await Board.deleteMany({ workspace: workspaceId }).session(session);
+      await Sprint.deleteMany({ workspace: workspaceId }).session(session);
+      await Workspace.findByIdAndDelete(workspaceId).session(session);
+    });
+  } finally {
+    await session.endSession();
   }
 };
 
@@ -166,11 +163,13 @@ export const addWorkspaceMemberService = async (
   if (alreadyMember) {
     throw new BadRequestError("User is already a member.");
   }
+
   workspace.members.push({
     user: new Types.ObjectId(userId),
     role,
     joinedAt: new Date(),
   });
+
   await workspace.save();
   await workspace.populate([
     { path: "owner", select: "name email avatar" },
@@ -204,7 +203,6 @@ export const updateWorkspaceMemberRoleService = async (
   member.role = role;
 
   await workspace.save();
-
   await workspace.populate([
     { path: "owner", select: "name email avatar" },
     { path: "members.user", select: "name email avatar" },
@@ -236,10 +234,171 @@ export const removeWorkspaceMemberService = async (
   workspace.members = workspace.members.filter(
     (m) => m.user.toString() !== userId,
   );
+
   await workspace.save();
   await workspace.populate([
     { path: "owner", select: "name email avatar" },
     { path: "members.user", select: "name email avatar" },
   ]);
+
   return workspace;
+};
+
+export const createProjectService = async (
+  workspaceId: string,
+  ownerId: string,
+  data: CreateProjectInput,
+): Promise<IProject> => {
+  const workspace = await Workspace.findById(workspaceId);
+
+  if (!workspace) {
+    throw new NotFoundError("Workspace not found.");
+  }
+
+  const exists = await Project.findOne({
+    workspace: workspaceId,
+    name: {
+      $regex: new RegExp(`^${escapeRegex(data.name)}$`, "i"),
+    },
+  });
+
+  if (exists) {
+    throw new BadRequestError(
+      "Project with this name already exists in this workspace.",
+    );
+  }
+
+  const adminRole = await Role.findOne({ name: "Admin" });
+
+  if (!adminRole) {
+    throw new NotFoundError("Default Admin role not found.");
+  }
+
+  const project = await Project.create({
+    ...data,
+    workspace: new Types.ObjectId(workspaceId),
+    owner: new Types.ObjectId(ownerId),
+    members: [
+      {
+        user: new Types.ObjectId(ownerId),
+        role: adminRole._id,
+        joinedAt: new Date(),
+      },
+    ],
+  });
+
+  return await project.populate([
+    { path: "owner", select: "name email avatar" },
+    { path: "workspace", select: "name color icon" },
+    { path: "members.user", select: "name email avatar" },
+    { path: "members.role" },
+  ]);
+};
+
+export const getWorkspaceProjectsService = async (
+  workspaceId: string,
+): Promise<IProject[]> => {
+  const workspace = await Workspace.findById(workspaceId);
+
+  if (!workspace) {
+    throw new NotFoundError("Workspace not found.");
+  }
+
+  return await Project.find({ workspace: workspaceId })
+    .populate("owner", "name email avatar")
+    .populate("workspace", "name color icon")
+    .sort({ createdAt: -1 });
+};
+
+export const getProjectByIdService = async (
+  workspaceId: string,
+  projectId: string,
+): Promise<IProject> => {
+  const project = await Project.findOne({
+    _id: projectId,
+    workspace: workspaceId,
+  })
+    .populate("owner", "name email avatar")
+    .populate("workspace", "name color icon")
+    .populate("members.user", "name email avatar")
+    .populate("members.role");
+
+  if (!project) {
+    throw new NotFoundError("Project not found.");
+  }
+
+  return project;
+};
+
+export const updateProjectService = async (
+  workspaceId: string,
+  projectId: string,
+  data: UpdateProjectInput,
+): Promise<IProject> => {
+  const project = await Project.findOne({
+    _id: projectId,
+    workspace: workspaceId,
+  });
+
+  if (!project) {
+    throw new NotFoundError("Project not found.");
+  }
+
+  if (data.name && data.name !== project.name) {
+    const exists = await Project.findOne({
+      workspace: workspaceId,
+      name: {
+        $regex: new RegExp(`^${escapeRegex(data.name)}$`, "i"),
+      },
+      _id: { $ne: projectId },
+    });
+
+    if (exists) {
+      throw new BadRequestError("Project with this name already exists.");
+    }
+  }
+
+  if (data.name !== undefined) project.name = data.name;
+  if (data.description !== undefined) project.description = data.description;
+  if (data.color !== undefined) project.color = data.color;
+  if (data.status !== undefined) project.status = data.status;
+  if (data.startDate !== undefined) {
+    project.startDate = new Date(data.startDate);
+  }
+  if (data.dueDate !== undefined) {
+    project.dueDate = new Date(data.dueDate);
+  }
+
+  await project.save();
+
+  return await project.populate([
+    { path: "owner", select: "name email avatar" },
+    { path: "workspace", select: "name color icon" },
+  ]);
+};
+
+export const deleteProjectService = async (
+  workspaceId: string,
+  projectId: string,
+): Promise<void> => {
+  const session = await mongoose.startSession();
+
+  try {
+    await session.withTransaction(async () => {
+      const project = await Project.findOne({
+        _id: projectId,
+        workspace: workspaceId,
+      }).session(session);
+
+      if (!project) {
+        throw new NotFoundError("Project not found.");
+      }
+
+      await Board.deleteMany({ project: projectId }).session(session);
+      await Sprint.deleteMany({ project: projectId }).session(session);
+      await Project.findByIdAndDelete(projectId).session(session);
+    });
+  } finally {
+    await session.endSession();
+  }
 };

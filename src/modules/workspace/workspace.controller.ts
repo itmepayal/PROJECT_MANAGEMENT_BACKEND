@@ -12,6 +12,11 @@ import {
   removeWorkspaceMemberService,
   updateWorkspaceMemberRoleService,
   addWorkspaceMemberService,
+  createProjectService,
+  getWorkspaceProjectsService,
+  getProjectByIdService,
+  updateProjectService,
+  deleteProjectService,
 } from "./workspace.service";
 import {
   addWorkspaceMemberSchema,
@@ -19,6 +24,10 @@ import {
   updateWorkspaceMemberRoleSchema,
   updateWorkspaceSchema,
 } from "../../validators/worksapce.validator";
+import {
+  createProjectSchema,
+  updateProjectSchema,
+} from "../../validators/project.validator";
 
 export const createWorkspaceController = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
@@ -143,6 +152,91 @@ export const removeWorkspaceMemberController = asyncHandler(
       StatusCodes.OK,
       "Member removed successfully.",
       workspace,
+    );
+  },
+);
+
+export const createProjectController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const { workspaceId } = req.params;
+    const ownerId = req.user!.id;
+    const validatedData = createProjectSchema.parse(req.body);
+    const project = await createProjectService(
+      workspaceId,
+      ownerId,
+      validatedData,
+    );
+    logger.info(
+      `Project "${project.name}" created successfully in workspace ${workspaceId}.`,
+    );
+    AppResponse.success(
+      res,
+      StatusCodes.CREATED,
+      "Project created successfully.",
+      project,
+    );
+  },
+);
+
+export const getWorkspaceProjectsController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const { workspaceId } = req.params;
+    const projects = await getWorkspaceProjectsService(workspaceId);
+    logger.info(
+      `Fetched ${projects.length} projects from workspace ${workspaceId}.`,
+    );
+    AppResponse.success(
+      res,
+      StatusCodes.OK,
+      "Projects fetched successfully.",
+      projects,
+    );
+  },
+);
+
+export const getProjectByIdController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const { workspaceId, projectId } = req.params;
+    const project = await getProjectByIdService(workspaceId, projectId);
+    logger.info(`Project ${projectId} fetched successfully.`);
+    AppResponse.success(
+      res,
+      StatusCodes.OK,
+      "Project fetched successfully.",
+      project,
+    );
+  },
+);
+
+export const updateProjectController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const { workspaceId, projectId } = req.params;
+    const validatedData = updateProjectSchema.parse(req.body);
+    const project = await updateProjectService(
+      workspaceId,
+      projectId,
+      validatedData,
+    );
+    logger.info(`Project ${projectId} updated successfully.`);
+    AppResponse.success(
+      res,
+      StatusCodes.OK,
+      "Project updated successfully.",
+      project,
+    );
+  },
+);
+
+export const deleteProjectController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const { workspaceId, projectId } = req.params;
+    await deleteProjectService(workspaceId, projectId);
+    logger.info(`Project ${projectId} deleted successfully.`);
+    AppResponse.success(
+      res,
+      StatusCodes.OK,
+      "Project deleted successfully.",
+      null,
     );
   },
 );

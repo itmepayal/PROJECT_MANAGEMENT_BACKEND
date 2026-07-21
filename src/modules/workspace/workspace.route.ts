@@ -9,6 +9,11 @@ import {
   addWorkspaceMemberController,
   updateWorkspaceMemberRoleController,
   removeWorkspaceMemberController,
+  createProjectController,
+  getWorkspaceProjectsController,
+  getProjectByIdController,
+  updateProjectController,
+  deleteProjectController,
 } from "./workspace.controller";
 import { authenticate } from "../../middlewares/auth.middleware";
 import {
@@ -61,6 +66,40 @@ workspaceRouter.delete(
   checkWorkspaceAccess,
   requireWorkspaceAdmin,
   removeWorkspaceMemberController,
+);
+
+workspaceRouter.post(
+  "/:workspaceId/projects",
+  authenticate,
+  checkWorkspaceAccess,
+  requireWorkspaceAdmin,
+  createProjectController,
+);
+workspaceRouter.get(
+  "/:workspaceId/projects",
+  authenticate,
+  checkWorkspaceAccess,
+  getWorkspaceProjectsController,
+);
+workspaceRouter.get(
+  "/:workspaceId/projects/:projectId",
+  authenticate,
+  checkWorkspaceAccess,
+  getProjectByIdController,
+);
+workspaceRouter.patch(
+  "/:workspaceId/projects/:projectId",
+  authenticate,
+  checkWorkspaceAccess,
+  requireWorkspaceAdmin,
+  updateProjectController,
+);
+workspaceRouter.delete(
+  "/:workspaceId/projects/:projectId",
+  authenticate,
+  checkWorkspaceAccess,
+  requireWorkspaceAdmin,
+  deleteProjectController,
 );
 
 export default workspaceRouter;
