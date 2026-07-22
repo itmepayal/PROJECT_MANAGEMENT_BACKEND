@@ -19,6 +19,7 @@ import Role, { IRole } from "../../models/role.model";
 import { escapeRegex } from "../../utils/helpers/regex";
 import Sprint from "../../models/sprint.model";
 import Board from "../../models/board.model";
+import Task from "../../models/task.model";
 import { CreateRoleInput } from "../../validators/role.validation";
 
 export const createWorkspaceService = async (
@@ -134,9 +135,10 @@ export const deleteWorkspaceService = async (
         throw new NotFoundError("Workspace not found.");
       }
 
-      await Project.deleteMany({ workspace: workspaceId }).session(session);
+      await Task.deleteMany({ workspace: workspaceId }).session(session);
       await Board.deleteMany({ workspace: workspaceId }).session(session);
       await Sprint.deleteMany({ workspace: workspaceId }).session(session);
+      await Project.deleteMany({ workspace: workspaceId }).session(session);
       await Workspace.findByIdAndDelete(workspaceId).session(session);
     });
   } finally {
@@ -280,9 +282,23 @@ export const createProjectService = async (
   }
 
   const project = await Project.create({
-    ...data,
+    name: data.name,
+    description: data.description,
+    color: data.color,
+
+    status: data.status,
+    progress: data.progress,
+    isArchived: data.isArchived,
+    archivedAt: data.archivedAt,
+
+    startDate: data.startDate ? new Date(data.startDate) : undefined,
+    dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
+
     workspace: new Types.ObjectId(workspaceId),
     owner: new Types.ObjectId(ownerId),
+
+    tasks: [],
+
     members: [
       {
         user: new Types.ObjectId(ownerId),
@@ -293,10 +309,21 @@ export const createProjectService = async (
   });
 
   return await project.populate([
-    { path: "owner", select: "name email avatar" },
-    { path: "workspace", select: "name color icon" },
-    { path: "members.user", select: "name email avatar" },
-    { path: "members.role" },
+    {
+      path: "owner",
+      select: "name email avatar",
+    },
+    {
+      path: "workspace",
+      select: "name color icon",
+    },
+    {
+      path: "members.user",
+      select: "name email avatar",
+    },
+    {
+      path: "members.role",
+    },
   ]);
 };
 
@@ -359,17 +386,49 @@ export const updateProjectService = async (
     });
 
     if (exists) {
-      throw new BadRequestError("Project with this name already exists.");
+      throw new BadRequestError(
+        "Project with this name already exists in this workspace.",
+      );
     }
   }
 
-  if (data.name !== undefined) project.name = data.name;
-  if (data.description !== undefined) project.description = data.description;
-  if (data.color !== undefined) project.color = data.color;
-  if (data.status !== undefined) project.status = data.status;
+  if (data.name !== undefined) {
+    project.name = data.name;
+  }
+
+  if (data.description !== undefined) {
+    project.description = data.description;
+  }
+
+  if (data.color !== undefined) {
+    project.color = data.color;
+  }
+
+  if (data.status !== undefined) {
+    project.status = data.status;
+  }
+
+  if (data.progress !== undefined) {
+    project.progress = data.progress;
+  }
+
+  if (data.isArchived !== undefined) {
+    project.isArchived = data.isArchived;
+
+    if (data.isArchived) {
+      project.archivedAt =
+        data.archivedAt !== undefined ? new Date(data.archivedAt) : new Date();
+    } else {
+      project.archivedAt = undefined;
+    }
+  } else if (data.archivedAt !== undefined) {
+    project.archivedAt = new Date(data.archivedAt);
+  }
+
   if (data.startDate !== undefined) {
     project.startDate = new Date(data.startDate);
   }
+
   if (data.dueDate !== undefined) {
     project.dueDate = new Date(data.dueDate);
   }
@@ -377,8 +436,24 @@ export const updateProjectService = async (
   await project.save();
 
   return await project.populate([
-    { path: "owner", select: "name email avatar" },
-    { path: "workspace", select: "name color icon" },
+    {
+      path: "owner",
+      select: "name email avatar",
+    },
+    {
+      path: "workspace",
+      select: "name color icon",
+    },
+    {
+      path: "members.user",
+      select: "name email avatar",
+    },
+    {
+      path: "members.role",
+    },
+    {
+      path: "tasks",
+    },
   ]);
 };
 
@@ -399,8 +474,18 @@ export const deleteProjectService = async (
         throw new NotFoundError("Project not found.");
       }
 
-      await Board.deleteMany({ project: projectId }).session(session);
-      await Sprint.deleteMany({ project: projectId }).session(session);
+      await Task.deleteMany({
+        workspace: workspaceId,
+        project: projectId,
+      }).session(session);
+      await Board.deleteMany({
+        workspace: workspaceId,
+        project: projectId,
+      }).session(session);
+      await Sprint.deleteMany({
+        workspace: workspaceId,
+        project: projectId,
+      }).session(session);
       await Project.findByIdAndDelete(projectId).session(session);
     });
   } finally {
@@ -423,27 +508,34 @@ export const createWorkspaceRoleService = async (
   workspaceId: string,
   data: CreateRoleInput,
 ): Promise<IRole> => {
-  const normalizedName = data.name.trim().toLowerCase();
+  const trimmedName = data.name.trim();
+  const normalizedName = trimmedName.toLowerCase();
+
   const reservedNames = ["owner", "admin", "member", "viewer"];
+
   if (reservedNames.includes(normalizedName)) {
     throw new BadRequestError(
-      `"${data.name}" is a reserved role name. Please choose a different name.`,
+      `"${trimmedName}" is a reserved role name. Please choose a different name.`,
     );
   }
+
   const existingRole = await Role.findOne({
     workspace: workspaceId,
-    name: { $regex: `^${normalizedName}$`, $options: "i" },
+    name: { $regex: `^${escapeRegex(normalizedName)}$`, $options: "i" },
   });
+
   if (existingRole) {
     throw new ConflictError(
-      `A role named "${data.name}" already exists in this workspace.`,
+      `A role named "${trimmedName}" already exists in this workspace.`,
     );
   }
+
   const role = await Role.create({
-    name: normalizedName,
+    name: trimmedName,
     workspace: workspaceId,
     permissions: data.permissions,
     isSystem: false,
   });
+
   return role;
 };

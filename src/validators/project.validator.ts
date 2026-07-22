@@ -2,6 +2,15 @@ import { z } from "zod";
 
 const hexColorRegex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
 
+export const PROJECT_STATUSES = [
+  "planning",
+  "active",
+  "on_hold",
+  "completed",
+  "cancelled",
+  "archived",
+] as const;
+
 export const createProjectSchema = z
   .object({
     name: z
@@ -24,10 +33,21 @@ export const createProjectSchema = z
       .optional()
       .default("#6366F1"),
 
-    status: z
-      .enum(["active", "completed", "archived"])
+    status: z.enum(PROJECT_STATUSES).optional().default("planning"),
+
+    progress: z
+      .number()
+      .min(0, "Progress must be at least 0.")
+      .max(100, "Progress cannot exceed 100.")
       .optional()
-      .default("active"),
+      .default(0),
+
+    isArchived: z.boolean().optional().default(false),
+
+    archivedAt: z
+      .string()
+      .datetime("Archived date must be a valid ISO date.")
+      .optional(),
 
     startDate: z
       .string()
@@ -42,7 +62,6 @@ export const createProjectSchema = z
   .refine(
     (data) => {
       if (!data.startDate || !data.dueDate) return true;
-
       return new Date(data.startDate) <= new Date(data.dueDate);
     },
     {
@@ -50,23 +69,6 @@ export const createProjectSchema = z
       message: "Due date must be greater than or equal to start date.",
     },
   );
-
-export type CreateProjectInput = z.infer<typeof createProjectSchema>;
-
-export const addProjectMemberSchema = z.object({
-  userId: z.string().trim().min(1, "User ID is required."),
-  roleId: z.string().trim().min(1, "Role ID is required."),
-});
-
-export type AddProjectMemberInput = z.infer<typeof addProjectMemberSchema>;
-
-export const updateProjectMemberRoleSchema = z.object({
-  roleId: z.string().trim().min(1, "Role ID is required."),
-});
-
-export type UpdateProjectMemberRoleInput = z.infer<
-  typeof updateProjectMemberRoleSchema
->;
 
 export const updateProjectSchema = z
   .object({
@@ -89,7 +91,20 @@ export const updateProjectSchema = z
       .regex(hexColorRegex, "Color must be a valid HEX color (e.g. #6366F1).")
       .optional(),
 
-    status: z.enum(["active", "completed", "archived"]).optional(),
+    status: z.enum(PROJECT_STATUSES).optional(),
+
+    progress: z
+      .number()
+      .min(0, "Progress must be at least 0.")
+      .max(100, "Progress cannot exceed 100.")
+      .optional(),
+
+    isArchived: z.boolean().optional(),
+
+    archivedAt: z
+      .string()
+      .datetime("Archived date must be a valid ISO date.")
+      .optional(),
 
     startDate: z
       .string()
@@ -107,7 +122,6 @@ export const updateProjectSchema = z
   .refine(
     (data) => {
       if (!data.startDate || !data.dueDate) return true;
-
       return new Date(data.startDate) <= new Date(data.dueDate);
     },
     {
@@ -116,4 +130,41 @@ export const updateProjectSchema = z
     },
   );
 
+export const addProjectMemberSchema = z.object({
+  userId: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid user id."),
+
+  roleId: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid role id."),
+});
+
+export const updateProjectMemberRoleSchema = z.object({
+  roleId: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid role id."),
+});
+
+export const projectIdParamSchema = z.object({
+  params: z.object({
+    projectId: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid project id."),
+  }),
+});
+
+export const workspaceProjectParamSchema = z.object({
+  params: z.object({
+    workspaceId: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid workspace id."),
+
+    projectId: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid project id."),
+  }),
+});
+
+export type CreateProjectInput = z.infer<typeof createProjectSchema>;
 export type UpdateProjectInput = z.infer<typeof updateProjectSchema>;
+
+export type AddProjectMemberInput = z.infer<typeof addProjectMemberSchema>;
+export type UpdateProjectMemberRoleInput = z.infer<
+  typeof updateProjectMemberRoleSchema
+>;
+
+export type ProjectIdParamInput = z.infer<
+  typeof projectIdParamSchema
+>["params"];
+export type WorkspaceProjectParamInput = z.infer<
+  typeof workspaceProjectParamSchema
+>["params"];
