@@ -14,6 +14,9 @@ declare global {
       project?: IProject;
       projectPermissions?: string[];
       projectId?: string;
+
+      board?: IBoard;
+      boardPermissions?: string[];
     }
   }
 }
