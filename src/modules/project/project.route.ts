@@ -10,6 +10,8 @@ import {
   removeProjectMemberController,
   createBoardController,
   listBoardsController,
+  createSprintController,
+  getProjectSprintsController,
 } from "./project.controller";
 
 const projectRouter = express.Router();
@@ -48,6 +50,20 @@ projectRouter.get(
   checkProjectAccess,
   requirePermission("board:view"),
   listBoardsController,
+);
+projectRouter.post(
+  "/:projectId/sprints",
+  authenticate,
+  checkProjectAccess,
+  requirePermission("sprint:create"),
+  createSprintController,
+);
+projectRouter.get(
+  "/:projectId/sprints",
+  authenticate,
+  checkProjectAccess,
+  requirePermission("sprint:view"),
+  getProjectSprintsController,
 );
 
 export default projectRouter;

@@ -8,6 +8,8 @@ import {
   removeProjectMemberService,
   createBoardService,
   listBoardsService,
+  createSprintService,
+  getProjectSprintsService,
 } from "./project.service";
 import { Request, Response } from "express";
 import asyncHandler from "express-async-handler";
@@ -15,6 +17,7 @@ import { StatusCodes } from "http-status-codes";
 import logger from "../../config/logger.config";
 import { AppResponse } from "../../utils/response/app.response";
 import { createBoardSchema } from "../../validators/board.validator";
+import { createSprintSchema } from "../../validators/sprint.validation";
 
 export const addProjectMemberController = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
@@ -96,6 +99,43 @@ export const listBoardsController = asyncHandler(
       StatusCodes.OK,
       "Boards fetched successfully.",
       boards,
+    );
+  },
+);
+
+export const createSprintController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const { projectId } = req.params;
+    const workspaceId = req.project!.workspace.toString();
+    const userId = req.user!.id;
+    const body = createSprintSchema.parse(req.body);
+    const sprint = await createSprintService(
+      body,
+      projectId,
+      workspaceId,
+      userId,
+    );
+    logger.info(`Sprint created in project ${projectId} by user ${userId}.`);
+    AppResponse.success(
+      res,
+      StatusCodes.CREATED,
+      "Sprint created successfully.",
+      sprint,
+    );
+  },
+);
+
+export const getProjectSprintsController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const { projectId } = req.params;
+    const userId = req.user!.id;
+    const sprints = await getProjectSprintsService(projectId);
+    logger.info(`Sprints fetched for project ${projectId} by user ${userId}.`);
+    AppResponse.success(
+      res,
+      StatusCodes.OK,
+      "Sprints fetched successfully.",
+      sprints,
     );
   },
 );

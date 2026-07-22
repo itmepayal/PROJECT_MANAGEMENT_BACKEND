@@ -5,6 +5,8 @@ import Project, { IProject } from "../../models/project.model";
 import Role from "../../models/role.model";
 import Workspace from "../../models/workspace.model";
 import Board from "../../models/board.model";
+import { CreateSprintInput } from "../../validators/sprint.validation";
+import Sprint, { ISprint } from "../../models/sprint.model";
 
 export const addProjectMemberService = async (
   projectId: string,
@@ -172,4 +174,59 @@ export const createBoardService = async (
 
 export const listBoardsService = async (projectId: string) => {
   return Board.find({ project: projectId }).sort({ createdAt: -1 });
+};
+
+export const createSprintService = async (
+  data: CreateSprintInput,
+  projectId: string,
+  workspaceId: string,
+  userId: string,
+): Promise<ISprint> => {
+  const { name, goal, board, startDate, endDate } = data;
+
+  if (board) {
+    const boardExists = await Board.findOne({
+      _id: board,
+      project: projectId,
+    });
+
+    if (!boardExists) {
+      throw new NotFoundError("Board not found in this project.");
+    }
+  }
+
+  const activeSprint = await Sprint.findOne({
+    project: projectId,
+    status: "active",
+  });
+
+  if (activeSprint) {
+    throw new BadRequestError(
+      "An active sprint already exists for this project. Complete it before creating a new one.",
+    );
+  }
+
+  const sprint = await Sprint.create({
+    name,
+    goal,
+    board: board,
+    startDate,
+    endDate,
+    project: projectId,
+    workspace: workspaceId,
+    createdBy: userId,
+  });
+
+  return sprint;
+};
+
+export const getProjectSprintsService = async (projectId: string) => {
+  const sprints = await Sprint.find({
+    project: projectId,
+  })
+    .populate("createdBy", "name email")
+    .populate("board", "name")
+    .sort({ createdAt: -1 });
+
+  return sprints;
 };
