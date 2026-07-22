@@ -4,6 +4,8 @@ import userRouter from "../../modules/user/user.route";
 import workspaceRouter from "../../modules/workspace/workspace.route";
 import projectRouter from "../../modules/project/project.route";
 import boardRouter from "../../modules/board/board.route";
+import sprintRouter from "../../modules/sprint/sprint.route";
+import roleRouter from "../../modules/role/role.route";
 
 const v1Router = express.Router();
 
@@ -21,5 +23,7 @@ v1Router.use("/users", userRouter);
 v1Router.use("/workspaces", workspaceRouter);
 v1Router.use("/projects", projectRouter);
 v1Router.use("/boards", boardRouter);
+v1Router.use("/sprints", sprintRouter);
+v1Router.use("/roles", roleRouter);
 
 export default v1Router;

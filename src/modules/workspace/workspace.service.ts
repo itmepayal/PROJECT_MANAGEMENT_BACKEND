@@ -1,6 +1,10 @@
 import mongoose, { Types } from "mongoose";
 import Workspace, { IWorkspace } from "../../models/workspace.model";
-import { BadRequestError, NotFoundError } from "../../utils/errors/app.error";
+import {
+  BadRequestError,
+  ConflictError,
+  NotFoundError,
+} from "../../utils/errors/app.error";
 import {
   CreateWorkspaceInput,
   UpdateWorkspaceInput,
@@ -11,10 +15,11 @@ import {
 } from "../../validators/project.validator";
 import User from "../../models/user.model";
 import Project, { IProject } from "../../models/project.model";
-import Role from "../../models/role.model";
+import Role, { IRole } from "../../models/role.model";
 import { escapeRegex } from "../../utils/helpers/regex";
 import Sprint from "../../models/sprint.model";
 import Board from "../../models/board.model";
+import { CreateRoleInput } from "../../validators/role.validation";
 
 export const createWorkspaceService = async (
   ownerId: string,
@@ -401,4 +406,44 @@ export const deleteProjectService = async (
   } finally {
     await session.endSession();
   }
+};
+
+export const getWorkspaceRolesService = async (
+  workspaceId: string,
+): Promise<IRole[]> => {
+  return await Role.find({
+    $or: [{ workspace: null }, { workspace: workspaceId }],
+  }).sort({
+    isSystem: -1,
+    name: 1,
+  });
+};
+
+export const createWorkspaceRoleService = async (
+  workspaceId: string,
+  data: CreateRoleInput,
+): Promise<IRole> => {
+  const normalizedName = data.name.trim().toLowerCase();
+  const reservedNames = ["owner", "admin", "member", "viewer"];
+  if (reservedNames.includes(normalizedName)) {
+    throw new BadRequestError(
+      `"${data.name}" is a reserved role name. Please choose a different name.`,
+    );
+  }
+  const existingRole = await Role.findOne({
+    workspace: workspaceId,
+    name: { $regex: `^${normalizedName}$`, $options: "i" },
+  });
+  if (existingRole) {
+    throw new ConflictError(
+      `A role named "${data.name}" already exists in this workspace.`,
+    );
+  }
+  const role = await Role.create({
+    name: normalizedName,
+    workspace: workspaceId,
+    permissions: data.permissions,
+    isSystem: false,
+  });
+  return role;
 };

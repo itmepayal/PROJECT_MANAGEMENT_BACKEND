@@ -1,8 +1,8 @@
-import { Document, Schema, model } from "mongoose";
+import { Document, Schema, model, Types } from "mongoose";
 
 export interface IRole extends Document {
   name: string;
-  workspace?: Schema.Types.ObjectId | null;
+  workspace?: Types.ObjectId | null;
   permissions: string[];
   isSystem: boolean;
   createdAt: Date;

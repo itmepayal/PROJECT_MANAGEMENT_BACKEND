@@ -2,6 +2,7 @@ import type { IWorkspace } from "../models/workspace.model";
 import type { IProject } from "../models/project.model";
 import { JWTPayload } from ".";
 import { ISprint } from "../models/sprint.model";
+import { IRole } from "../models/role.model";
 
 declare global {
   namespace Express {
@@ -20,6 +21,8 @@ declare global {
       boardPermissions?: string[];
 
       sprint?: ISprint;
+
+      role?: IRole;
     }
   }
 }

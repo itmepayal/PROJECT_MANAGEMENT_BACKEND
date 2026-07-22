@@ -17,6 +17,8 @@ import {
   getProjectByIdService,
   updateProjectService,
   deleteProjectService,
+  getWorkspaceRolesService,
+  createWorkspaceRoleService,
 } from "./workspace.service";
 import {
   addWorkspaceMemberSchema,
@@ -28,6 +30,10 @@ import {
   createProjectSchema,
   updateProjectSchema,
 } from "../../validators/project.validator";
+import {
+  createRoleSchema,
+  getRolesParamSchema,
+} from "../../validators/role.validation";
 
 export const createWorkspaceController = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
@@ -237,6 +243,41 @@ export const deleteProjectController = asyncHandler(
       StatusCodes.OK,
       "Project deleted successfully.",
       null,
+    );
+  },
+);
+
+export const getWorkspaceRolesController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const { workspaceId } = getRolesParamSchema.parse({
+      params: req.params,
+    }).params;
+    const roles = await getWorkspaceRolesService(workspaceId);
+    logger.info(`Fetched ${roles.length} roles from workspace ${workspaceId}.`);
+    AppResponse.success(
+      res,
+      StatusCodes.OK,
+      "Workspace roles fetched successfully.",
+      roles,
+    );
+  },
+);
+
+export const createWorkspaceRoleController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const { workspaceId } = getRolesParamSchema.parse({
+      params: req.params,
+    }).params;
+    const roleData = createRoleSchema.parse(req.body);
+    const role = await createWorkspaceRoleService(workspaceId, roleData);
+    logger.info(
+      `Role "${role.name}" created successfully in workspace ${workspaceId}.`,
+    );
+    AppResponse.success(
+      res,
+      StatusCodes.CREATED,
+      "Role created successfully.",
+      role,
     );
   },
 );

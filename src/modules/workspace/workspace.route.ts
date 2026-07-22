@@ -1,5 +1,4 @@
 import express from "express";
-
 import {
   createWorkspaceController,
   getUserWorkspacesController,
@@ -14,6 +13,8 @@ import {
   getProjectByIdController,
   updateProjectController,
   deleteProjectController,
+  getWorkspaceRolesController,
+  createWorkspaceRoleController,
 } from "./workspace.controller";
 import { authenticate } from "../../middlewares/auth.middleware";
 import {
@@ -99,6 +100,19 @@ workspaceRouter.delete(
   checkWorkspaceAccess,
   requireWorkspaceAdmin,
   deleteProjectController,
+);
+workspaceRouter.get(
+  "/:workspaceId/roles",
+  authenticate,
+  checkWorkspaceAccess,
+  getWorkspaceRolesController,
+);
+workspaceRouter.post(
+  "/:workspaceId/roles",
+  authenticate,
+  checkWorkspaceAccess,
+  requireWorkspaceAdmin,
+  createWorkspaceRoleController,
 );
 
 export default workspaceRouter;
